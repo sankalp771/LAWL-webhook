@@ -14,12 +14,22 @@ async function processDeliveries() {
     await client.query('BEGIN');
     
     // 1. SELECT deliveries WHERE status IN ('pending', 'failed') FOR UPDATE SKIP LOCKED LIMIT 10
+    // Added Phase 5 Ordered Delivery check (NOT EXISTS subquery)
     const { rows } = await client.query(`
       SELECT d.id, d.subscriber_id, s.url, e.payload, d.attempt_count 
       FROM deliveries d
       JOIN events e ON e.id = d.event_id
       JOIN subscribers s ON s.id = d.subscriber_id
       WHERE d.status IN ('pending', 'failed') AND d.next_retry_at <= now()
+        AND NOT EXISTS (
+          SELECT 1 
+          FROM deliveries d2
+          WHERE d2.subscriber_id = d.subscriber_id
+            AND d2.sequence_id = d.sequence_id
+            AND d2.sequence_id IS NOT NULL
+            AND d2.status IN ('pending', 'processing', 'failed')
+            AND d2.created_at < d.created_at
+        )
       FOR UPDATE OF d SKIP LOCKED
       LIMIT 10
     `);
