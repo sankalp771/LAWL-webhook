@@ -3,12 +3,14 @@ import Fastify from 'fastify';
 import { closePool, pingDatabase, runSchema } from '../db/client';
 import { subscribeRoutes } from './routes/subscribe';
 import { eventRoutes } from './routes/event';
+import { deliveriesRoutes } from './routes/deliveries';
 
 export function buildServer() {
   const app = Fastify({ logger: true });
 
   app.register(subscribeRoutes);
   app.register(eventRoutes);
+  app.register(deliveriesRoutes);
 
   app.get('/health', async () => {
     await pingDatabase();
