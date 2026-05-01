@@ -9,7 +9,8 @@
     "start:worker": "tsx src/worker/index.ts",
     "dev:api": "tsx watch src/api/server.ts",
     "dev:worker": "tsx watch src/worker/index.ts",
-    "test": "dotenv -e .env.test vitest run"
+    "test": "dotenv -e .env.test vitest run",
+    "harness": "dotenv -e .env.test tsx tests/harness/simulate200.ts"
   },
   "dependencies": {
     "fastify": "^5.2.1",

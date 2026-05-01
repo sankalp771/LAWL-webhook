@@ -1,7 +1,7 @@
 import { pool } from '../db/client';
 
-const CIRCUIT_OPEN_THRESHOLD = 100;   // pause when backlog > 100
-const CIRCUIT_CLOSE_THRESHOLD = 20;   // resume when backlog < 20
+const CIRCUIT_OPEN_THRESHOLD = 500;    // pause when backlog > 500
+const CIRCUIT_CLOSE_THRESHOLD = 100;   // resume when backlog < 100
 
 export async function isCircuitOpen(subscriberId: string): Promise<boolean> {
   const { rows } = await pool.query(
