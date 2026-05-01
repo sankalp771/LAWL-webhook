@@ -25,7 +25,7 @@ export async function subscribeRoutes(app: FastifyInstance) {
     const { rows } = await pool.query<{ id: string; url: string; event_types: string[]; created_at: string; is_insert: boolean }>(
       `INSERT INTO subscribers (url, event_types, secret)
        VALUES ($1, $2, $3)
-       ON CONFLICT (url) DO UPDATE SET event_types = EXCLUDED.event_types
+       ON CONFLICT (url) DO UPDATE SET event_types = EXCLUDED.event_types, secret = EXCLUDED.secret
        RETURNING id, url, event_types, created_at, (xmax = 0) AS is_insert`,
       [url, event_types, secret ?? null]
     );

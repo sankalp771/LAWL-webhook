@@ -6,6 +6,9 @@ const server = createServer((req, res) => {
     req.on('data', chunk => { body += chunk; });
     req.on('end', () => {
       console.log('[RECEIVED]', body);
+      if (req.headers['x-webhook-signature']) {
+        console.log('[SIGNATURE]', req.headers['x-webhook-signature']);
+      }
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: true }));
     });

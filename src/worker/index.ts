@@ -1,4 +1,4 @@
-import { closePool, runSchema } from '../db/client';
+import { pool, closePool, runSchema } from '../db/client';
 
 import { startDispatcher } from './dispatcher';
 

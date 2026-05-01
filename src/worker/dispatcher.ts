@@ -1,6 +1,7 @@
 import { pool } from '../db/client';
 import crypto from 'crypto';
 import { getNextRetryAt } from './retry';
+import { generateSignature } from './hmac';
 
 export async function startDispatcher() {
   setInterval(processDeliveries, 1000);
@@ -16,7 +17,7 @@ async function processDeliveries() {
     // 1. SELECT deliveries WHERE status IN ('pending', 'failed') FOR UPDATE SKIP LOCKED LIMIT 10
     // Added Phase 5 Ordered Delivery check (NOT EXISTS subquery)
     const { rows } = await client.query(`
-      SELECT d.id, d.subscriber_id, s.url, e.payload, d.attempt_count 
+      SELECT d.id, d.subscriber_id, s.url, s.secret, e.payload, d.attempt_count 
       FROM deliveries d
       JOIN events e ON e.id = d.event_id
       JOIN subscribers s ON s.id = d.subscriber_id
@@ -62,10 +63,19 @@ async function processDeliveries() {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
 
+        const payloadString = JSON.stringify(delivery.payload);
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json'
+        };
+
+        if (delivery.secret) {
+          headers['x-webhook-signature'] = generateSignature(payloadString, delivery.secret);
+        }
+
         const response = await fetch(delivery.url, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(delivery.payload),
+          headers,
+          body: payloadString,
           signal: controller.signal
         });
         clearTimeout(timeoutId);
