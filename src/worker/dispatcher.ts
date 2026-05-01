@@ -2,6 +2,7 @@ import { pool } from '../db/client';
 import crypto from 'crypto';
 import { getNextRetryAt } from './retry';
 import { generateSignature } from './hmac';
+import { isCircuitOpen } from './backpressure';
 
 export async function startDispatcher() {
   setInterval(processDeliveries, 1000);
@@ -54,6 +55,18 @@ async function processDeliveries() {
     // 3. Process each delivery concurrently or sequentially
     // (We do it sequentially here for simplicity)
     for (const delivery of rows) {
+      // Phase 8: Back-pressure circuit breaker
+      const circuitOpen = await isCircuitOpen(delivery.subscriber_id);
+      if (circuitOpen) {
+        // Release lock — don't process this subscriber right now
+        await pool.query(
+          `UPDATE deliveries SET status='pending', locked_by=NULL WHERE id=$1`,
+          [delivery.id]
+        );
+        console.warn(`[backpressure] Circuit open for subscriber ${delivery.subscriber_id} — skipping`);
+        continue;
+      }
+
       const start = Date.now();
       let statusCode: number | null = null;
       let responseBody = '';
@@ -65,7 +78,8 @@ async function processDeliveries() {
 
         const payloadString = JSON.stringify(delivery.payload);
         const headers: Record<string, string> = {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-Delivery-Id': delivery.id,  // Phase 8: dedup anchor for subscribers
         };
 
         if (delivery.secret) {
@@ -92,11 +106,11 @@ async function processDeliveries() {
       // 4. On success: status = 'success', log attempt
       // 5. On failure: status = 'failed', log attempt
       if (success) {
-        await pool.query(`
-          UPDATE deliveries 
-          SET status = 'success', locked_by = NULL
-          WHERE id = $1
-        `, [delivery.id]);
+        // Phase 8: Idempotent write — ignore if a late response already flipped to success
+        await pool.query(
+          `UPDATE deliveries SET status='success', locked_by=NULL WHERE id=$1 AND status != 'success'`,
+          [delivery.id]
+        );
       } else {
         const nextRetry = getNextRetryAt(delivery.attempt_count);
         if (!nextRetry) {
