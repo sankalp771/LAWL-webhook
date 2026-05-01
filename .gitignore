@@ -1,2 +1,5 @@
+/docs
 plan.md
 /node_modules
+.env
+.env.test
