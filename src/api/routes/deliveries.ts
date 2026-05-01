@@ -75,17 +75,17 @@ export async function deliveriesRoutes(app: FastifyInstance) {
       });
     }
 
-    await pool.query(
-      `UPDATE deliveries 
-       SET status = 'pending', attempt_count = 0, next_retry_at = now(), locked_by = NULL
-       WHERE id = $1`,
-      [delivery_id]
+    const { rows: newRows } = await pool.query(
+      `INSERT INTO deliveries (event_id, subscriber_id, sequence_id, status, attempt_count, next_retry_at)
+       VALUES ($1, $2, $3, 'pending', 0, now())
+       RETURNING id`,
+      [original.event_id, original.subscriber_id, original.sequence_id]
     );
 
     return reply.status(202).send({
       replayed: true,
-      delivery_id: delivery_id,
-      message: 'Delivery reset to pending — worker will retry shortly'
+      original_delivery_id: delivery_id,
+      new_delivery_id: newRows[0].id
     });
   });
 }

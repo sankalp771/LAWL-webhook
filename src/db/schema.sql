@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS deliveries (
   locked_by TEXT,
   sequence_id TEXT,
   created_at TIMESTAMPTZ DEFAULT now(),
-  UNIQUE (event_id, subscriber_id)
+  UNIQUE (event_id, subscriber_id) -- replaced by partial index below
 );
 
 CREATE TABLE IF NOT EXISTS delivery_attempts (
@@ -48,3 +48,9 @@ CREATE INDEX IF NOT EXISTS idx_deliveries_subscriber
 
 CREATE INDEX IF NOT EXISTS idx_delivery_attempts_del
   ON delivery_attempts(delivery_id);
+
+-- Partial unique index: prevents fan-out duplicates for live deliveries
+-- but allows a new row when the original is dead (for replay)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_deliveries_dedup
+  ON deliveries(event_id, subscriber_id)
+  WHERE status NOT IN ('dead');

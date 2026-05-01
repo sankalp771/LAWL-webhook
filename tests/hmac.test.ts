@@ -10,15 +10,12 @@ describe('HMAC Signature Logic', () => {
     
     // We can verify this manually or just assert it's a 64-char hex string 
     // that remains perfectly deterministic.
-    expect(signature).toHaveLength(64);
+    expect(signature).toHaveLength(71); // 'sha256=' (7 chars) + 64 hex chars
     
     const signature2 = generateSignature(payload, secret);
     expect(signature).toBe(signature2);
     
-    // Test with a known hash:
-    // payload: {"data":123}
-    // secret: my-super-secret
-    // expected HMAC SHA-256: 01bf8a8c430ad8a4e3faab2b2fcffae96cbaef1f99c15e21cffbd5cd2c0ed1b8
-    expect(signature).toBe('249495dedbc84f14f9e2a02beabfe2166030a9d70ed961ff1db4ce44640012e9');
+    expect(signature.startsWith('sha256=')).toBe(true);
+    expect(signature).toBe('sha256=249495dedbc84f14f9e2a02beabfe2166030a9d70ed961ff1db4ce44640012e9');
   });
 });
