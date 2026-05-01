@@ -1,13 +1,12 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-
 import { Pool } from 'pg';
 
-const connectionString =
-  process.env.DATABASE_URL ?? 'postgresql://lawl:lawl@postgres:5432/lawl_webhooks';
+console.log('POOL INIT URL:', process.env.DATABASE_URL);
 
 export const pool = new Pool({
-  connectionString,
+  connectionString: process.env.DATABASE_URL ??
+    'postgresql://lawl:lawl@127.0.0.1:5432/lawl_webhooks',
   max: 10,
 });
 
@@ -21,7 +20,6 @@ export async function runSchema() {
       await pool.query(schemaSql);
     })();
   }
-
   await schemaPromise;
 }
 
@@ -30,5 +28,6 @@ export async function pingDatabase() {
 }
 
 export async function closePool() {
+  schemaPromise = null;
   await pool.end();
 }

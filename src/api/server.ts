@@ -1,19 +1,18 @@
 import Fastify from 'fastify';
 
 import { closePool, pingDatabase, runSchema } from '../db/client';
+import { subscribeRoutes } from './routes/subscribe';
+import { eventRoutes } from './routes/event';
 
 export function buildServer() {
-  const app = Fastify({
-    logger: true,
-  });
+  const app = Fastify({ logger: true });
+
+  app.register(subscribeRoutes);
+  app.register(eventRoutes);
 
   app.get('/health', async () => {
     await pingDatabase();
-
-    return {
-      status: 'ok',
-      db: 'connected',
-    };
+    return { status: 'ok', db: 'connected' };
   });
 
   return app;
@@ -21,7 +20,6 @@ export function buildServer() {
 
 async function start() {
   await runSchema();
-
   const app = buildServer();
 
   try {
@@ -44,4 +42,6 @@ async function start() {
   process.on('SIGTERM', shutdown);
 }
 
-start();
+if (!process.env.VITEST) {
+  start();
+}

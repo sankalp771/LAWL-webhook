@@ -1,14 +1,16 @@
 services:
   postgres:
-    image: bitnami/postgresql:latest
+    image: postgres:15
+    command: -c password_encryption=md5
     environment:
-      POSTGRESQL_DATABASE: lawl_webhooks
-      POSTGRESQL_USERNAME: lawl
-      POSTGRESQL_PASSWORD: lawl
+      POSTGRES_DB: lawl_webhooks
+      POSTGRES_USER: lawl
+      POSTGRES_PASSWORD: lawl
+      POSTGRES_HOST_AUTH_METHOD: md5
     ports:
       - "5432:5432"
     volumes:
-      - pgdata:/bitnami/postgresql
+      - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U lawl -d lawl_webhooks"]
       interval: 5s
@@ -17,21 +19,27 @@ services:
 
   api:
     build: .
-    command: npm run start:api
+    command: npm run dev:api
     ports:
       - "3000:3000"
     depends_on:
       postgres:
         condition: service_healthy
     env_file: .env
+    volumes:
+      - .:/app
+      - /app/node_modules
 
   worker:
     build: .
-    command: npm run start:worker
+    command: npm run dev:worker
     depends_on:
       postgres:
         condition: service_healthy
     env_file: .env
+    volumes:
+      - .:/app
+      - /app/node_modules
 
 volumes:
   pgdata:
