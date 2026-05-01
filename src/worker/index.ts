@@ -5,6 +5,16 @@ import { startDispatcher } from './dispatcher';
 async function start() {
   try {
     await runSchema();
+    
+    // Crash recovery
+    await pool.query(`
+      UPDATE deliveries
+      SET status='pending', locked_by=NULL
+      WHERE status='processing'
+        AND locked_by IS NOT NULL
+        AND created_at < now() - interval '60 seconds'
+    `);
+    
     await startDispatcher();
     console.log('Worker started');
   } catch (error) {

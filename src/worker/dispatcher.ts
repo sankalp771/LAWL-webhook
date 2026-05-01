@@ -1,5 +1,6 @@
 import { pool } from '../db/client';
 import crypto from 'crypto';
+import { getNextRetryAt } from './retry';
 
 export async function startDispatcher() {
   setInterval(processDeliveries, 1000);
@@ -12,13 +13,13 @@ async function processDeliveries() {
   try {
     await client.query('BEGIN');
     
-    // 1. SELECT deliveries WHERE status='pending' FOR UPDATE SKIP LOCKED LIMIT 10
+    // 1. SELECT deliveries WHERE status IN ('pending', 'failed') FOR UPDATE SKIP LOCKED LIMIT 10
     const { rows } = await client.query(`
-      SELECT d.id, d.subscriber_id, s.url, e.payload 
+      SELECT d.id, d.subscriber_id, s.url, e.payload, d.attempt_count 
       FROM deliveries d
       JOIN events e ON e.id = d.event_id
       JOIN subscribers s ON s.id = d.subscriber_id
-      WHERE d.status = 'pending' AND d.next_retry_at <= now()
+      WHERE d.status IN ('pending', 'failed') AND d.next_retry_at <= now()
       FOR UPDATE OF d SKIP LOCKED
       LIMIT 10
     `);
@@ -70,13 +71,24 @@ async function processDeliveries() {
 
       // 4. On success: status = 'success', log attempt
       // 5. On failure: status = 'failed', log attempt
-      const newStatus = success ? 'success' : 'failed';
-      
-      await pool.query(`
-        UPDATE deliveries 
-        SET status = $1, locked_by = NULL
-        WHERE id = $2
-      `, [newStatus, delivery.id]);
+      if (success) {
+        await pool.query(`
+          UPDATE deliveries 
+          SET status = 'success', locked_by = NULL
+          WHERE id = $1
+        `, [delivery.id]);
+      } else {
+        const nextRetry = getNextRetryAt(delivery.attempt_count);
+        if (!nextRetry) {
+          await pool.query(`UPDATE deliveries SET status='dead', locked_by=NULL WHERE id=$1`, [delivery.id]);
+        } else {
+          await pool.query(`
+            UPDATE deliveries 
+            SET status = 'failed', attempt_count = attempt_count + 1, next_retry_at = $1, locked_by = NULL
+            WHERE id = $2
+          `, [nextRetry, delivery.id]);
+        }
+      }
 
       await pool.query(`
         INSERT INTO delivery_attempts (delivery_id, status_code, response_body, latency_ms)
